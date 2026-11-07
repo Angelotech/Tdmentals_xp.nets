@@ -1,0 +1,18 @@
+{
+  "name": "TDMXP Java 21",
+  "image": "mcr.microsoft.com/devcontainers/java:1-21-bullseye",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-spring-initializr",
+        "vscjava.vscode-maven",
+        "Pivotal.vscode-spring-boot",
+        "esbenp.prettier-vscode",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg"
+      ]
+    }
+  },
+  "forwardPorts": [3000, 8080, 5432]
+}
