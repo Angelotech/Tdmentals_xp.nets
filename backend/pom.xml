@@ -9,17 +9,14 @@
         <version>3.5.6</version>
         <relativePath/>
     </parent>
-
     <groupId>br.com.tdmxp</groupId>
     <artifactId>tdmxp-backend</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>tdmxp-backend</name>
     <description>Backend da plataforma TDMXP</description>
-
     <properties>
         <java.version>21</java.version>
     </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -50,6 +47,10 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <!-- Suporte do Flyway ao PostgreSQL -->
         <dependency>

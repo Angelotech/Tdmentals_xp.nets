@@ -12,11 +12,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-tdmxp_user} -d ${DB_NAME:-tdmxp_db}" ]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tdmxp_user} -d ${DB_NAME:-tdmxp_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
-    networks: [ tdmxp-network ]
+    networks:
+      - tdmxp-network
 
   backend:
     build:
@@ -24,19 +25,25 @@ services:
       dockerfile: Dockerfile
     container_name: tdmxp-backend
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-tdmxp_db}
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-tdmxp_user}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?Defina DB_PASSWORD no arquivo .env}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      DEVIN_API_KEY: ${DEVIN_API_KEY:-}
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      MAIL_FROM: ${MAIL_FROM}
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
-    networks: [tdmxp-network]
+    networks:
+      - tdmxp-network
 
   frontend:
     build:
@@ -48,7 +55,8 @@ services:
       - "3000:80"
     depends_on:
       - backend
-    networks: [tdmxp-network]
+    networks:
+      - tdmxp-network
 
 volumes:
   postgres_data:
