@@ -15,7 +15,7 @@ public class FirecrawlService {
         this.clientRest = clientRest;
     }
 
-    public JsonNode buscarFontes(String estado, String cidade){
+    public JsonNode buscarFontes(String estado, String cidade) {
 
         if (estado == null || estado.isBlank()) {
             throw new IllegalArgumentException("O estado é obrigatório.");
@@ -46,12 +46,8 @@ public class FirecrawlService {
     }
 
 
-
-
-
-
-
     }
-}
+
+
 
 
