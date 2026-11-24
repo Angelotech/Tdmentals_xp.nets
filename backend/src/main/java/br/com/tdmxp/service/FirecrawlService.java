@@ -3,7 +3,6 @@ package br.com.tdmxp.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
-
 import java.util.Map;
 
 @Service
@@ -26,10 +25,13 @@ public class FirecrawlService {
         }
 
         //Envia uma pesquisa ao Firecrawl procurando páginas de órgãos oficiais.
-        String pesquisa = "Sites oficiais da Defesa Civil, prefeitura e órgãos "
-                + "públicos com alertas e notícias sobre "
-                + cidade + ", " + estado
-                + ", Brasil. Priorizar fontes governamentais oficiais.";
+        String pesquisa = "Buscar exclusivamente sites oficiais da Defesa Civil, "
+                + "prefeitura e órgãos públicos, como INMET e CEMADEN, "
+                + "com alertas, comunicados e notícias sobre "
+                + cidade + ", " + estado + ", Brasil. "
+                + "Não buscar resultados de redes sociais como Instagram, "
+                + "Facebook, YouTube, TikTok ou portais de notícias não oficiais. "
+                + "Priorizar fontes governamentais e institucionais oficiais sempre.";
 
         Map<String, Object> requisicao = Map.of(
                 "query", pesquisa,

@@ -1,3 +1,4 @@
+
 package br.com.tdmxp.service;
 
 import org.springframework.stereotype.Service;
@@ -9,11 +10,21 @@ import java.util.Set;
 @Service
 public class ValidacaoFonteService {
 
-    private static final Set<String> DOMINIOS_OFICIAIS = Set.of(
+    private static final Set<String> DOMINIOS_AUTORIZADOS = Set.of(
             "gov.br",
             "inmet.gov.br",
             "cemaden.gov.br",
             "defesacivil.gov.br"
+    );
+
+    private static final Set<String> DOMINIOS_BLOQUEADOS = Set.of(
+            "instagram.com",
+            "facebook.com",
+            "youtube.com",
+            "youtu.be",
+            "tiktok.com",
+            "x.com",
+            "twitter.com"
     );
 
     public boolean validarFonte(String url) {
@@ -23,6 +34,7 @@ public class ValidacaoFonteService {
         }
 
         try {
+
             URI uri = URI.create(url.trim());
 
             // Aceita somente HTTP ou HTTPS
@@ -35,17 +47,28 @@ public class ValidacaoFonteService {
             }
 
             // Extrai o domínio
-            String dominioExt = uri.getHost();
+            String dominio = uri.getHost();
 
-            if (dominioExt == null || dominioExt.isBlank()) {
+            if (dominio == null || dominio.isBlank()) {
                 return false;
             }
 
-            // Verifica se o domínio pertence à lista autorizada
-            return DOMINIOS_OFICIAIS.stream()
+            // Bloqueia redes sociais
+            boolean bloqueado = DOMINIOS_BLOQUEADOS.stream()
+                    .anyMatch(dominioBloqueado ->
+                            dominio.toLowerCase().equals(dominioBloqueado)
+                                    || dominio.toLowerCase().endsWith("." + dominioBloqueado)
+                    );
+
+            if (bloqueado) {
+                return false;
+            }
+
+            // Verifica se pertence a um domínio autorizado
+            return DOMINIOS_AUTORIZADOS.stream()
                     .anyMatch(oficial ->
-                            dominioExt.toLowerCase().equals(oficial)
-                                    || dominioExt.toLowerCase(Locale.ROOT).endsWith("." + oficial)
+                            dominio.toLowerCase().equals(oficial)
+                                    || dominio.toLowerCase().endsWith("." + oficial)
                     );
 
         } catch (IllegalArgumentException e) {
