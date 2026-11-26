@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.HtmlUtils;
 
 import java.io.UnsupportedEncodingException;
 
@@ -43,12 +44,22 @@ public class EmailService {
                     <small style="color: #777;">Enviado automaticamente pelo sistema TDMXP.</small>
                   </body>
                 </html>
-                """.formatted(texto);
+                """.formatted(textoParaHtml(texto));
 
             emailHtmlTexto.setText(texto, html);
             mailSender.send(mimeMessage);
         } catch (MessagingException | UnsupportedEncodingException e) {
             throw new RuntimeException("Erro ao montar ou enviar e-mail", e);
         }
+    }
+
+    /**
+     * Prepara o texto para a versão HTML do email:
+     * escapa caracteres especiais, transforma links em clicáveis e preserva as quebras de linha.
+     */
+    private String textoParaHtml(String texto) {
+        String escapado = HtmlUtils.htmlEscape(texto);
+        String comLinks = escapado.replaceAll("(https?://[^\\s<]+)", "<a href=\"$1\">$1</a>");
+        return comLinks.replace("\r\n", "\n").replace("\n", "<br>");
     }
 }
