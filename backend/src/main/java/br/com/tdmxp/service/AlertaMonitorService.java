@@ -2,15 +2,11 @@ package br.com.tdmxp.service;
 
 import br.com.tdmxp.enums.NotificationStatus;
 import br.com.tdmxp.enums.RiskLevel;
-import br.com.tdmxp.model.Alert;
-import br.com.tdmxp.model.EmailNotification;
-import br.com.tdmxp.model.Subscription;
-import br.com.tdmxp.model.User;
+import br.com.tdmxp.model.*;
 import br.com.tdmxp.repository.AlertRepository;
 import br.com.tdmxp.repository.EmailNotificationRepository;
 import br.com.tdmxp.repository.SubscriptionRepository;
 import br.com.tdmxp.repository.UserRepository;
-import br.com.tdmxp.util.Estados;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +33,9 @@ import java.util.Set;
 
 /**
  * Para cada cidade/UF com usuários cadastrados:
- *  1. busca avisos oficiais no Firecrawl;
- *  2. salva os novos na tabela alerts;
- *  3. envia email aos usuários da cidade e registra em email_notifications.
+ * 1. busca avisos oficiais no Firecrawl;
+ * 2. salva os novos na tabela alerts;
+ * 3. envia email aos usuários elegíveis e registra em email_notifications.
  */
 @Service
 public class AlertaMonitorService {
@@ -73,12 +69,12 @@ public class AlertaMonitorService {
         this.alertRepository = alertRepository;
         this.subscriptionRepository = subscriptionRepository;
         this.notificationRepository = notificationRepository;
-        this.riscoMinimo = riscoMinimo;
+        this.riscoMinimo = riscoMinimo != null ? riscoMinimo : RiskLevel.MEDIO;
     }
 
     @Scheduled(
-            fixedDelayString = "${alerta.intervalo-ms:1800000}",      // 30 minutos
-            initialDelayString = "${alerta.atraso-inicial-ms:30000}"  // 30 s após subir
+            fixedDelayString = "${alerta.intervalo-ms:1800000}",
+            initialDelayString = "${alerta.atraso-inicial-ms:30000}"
     )
     public void verificarAgendado() {
         try {
@@ -108,7 +104,6 @@ public class AlertaMonitorService {
             try {
                 enviados += processarLocal(cidade, uf, nomeEstado.get(), usuarios, cacheAssinaturas);
             } catch (Exception e) {
-                // um local com erro não impede os outros
                 log.error("Falha ao processar {}/{}: {}", cidade, uf, e.getMessage(), e);
             }
         }
@@ -136,6 +131,7 @@ public class AlertaMonitorService {
                                List<User> usuarios, Map<Long, List<Subscription>> cacheAssinaturas) {
         JsonNode resposta = firecrawlService.buscarFontes(nomeEstado, cidade);
         if (resposta == null) {
+            log.debug("Firecrawl retornou null para {}/{}", cidade, uf);
             return 0;
         }
 
@@ -143,7 +139,11 @@ public class AlertaMonitorService {
         Set<String> urlsVistas = new HashSet<>();
 
         for (String tipo : TIPOS) {
-            for (JsonNode item : resposta.path("data").path(tipo)) {
+            JsonNode itens = resposta.path("data").path(tipo);
+            if (!itens.isArray() && !itens.isObject()) {
+                continue;
+            }
+            for (JsonNode item : itens) {
                 String url = item.path("url").asText("").trim();
                 String titulo = item.path("title").asText("").trim();
                 String descricao = item.path("description").asText("").trim();
@@ -154,8 +154,7 @@ public class AlertaMonitorService {
 
                 Alert alerta = obterOuCriarAlerta(url, titulo, descricao, cidade, uf);
 
-                // o aviso fica salvo, mas só gera email se atingir o risco mínimo configurado
-                if (alerta.getRiskLevel().ordinal() < riscoMinimo.ordinal()) {
+                if (alerta.getRiskLevel() == null || alerta.getRiskLevel().ordinal() < riscoMinimo.ordinal()) {
                     continue;
                 }
 
@@ -170,7 +169,6 @@ public class AlertaMonitorService {
     }
 
     private Alert obterOuCriarAlerta(String url, String titulo, String descricao, String cidade, String uf) {
-        // o mesmo link pode valer para cidades diferentes, então a cidade entra no identificador
         String externalId = gerarExternalId(url, cidade, uf);
 
         return alertRepository.findByExternalId(externalId)
@@ -193,7 +191,6 @@ public class AlertaMonitorService {
         alerta.setLocationUf(uf);
         alerta.setSourceName(truncar(hostDe(url), 100));
         alerta.setSourceUrl(url);
-        // a busca não informa a data de publicação; usamos o momento em que o aviso foi detectado
         alerta.setPublishedAt(LocalDateTime.now());
         return alerta;
     }
@@ -203,18 +200,20 @@ public class AlertaMonitorService {
             return false;
         }
 
+        LocalDateTime agora = LocalDateTime.now();
         EmailNotification notificacao = notificationRepository
                 .findByUserIdAndAlertId(usuario.getId(), alerta.getId())
                 .orElse(null);
 
         if (notificacao != null) {
             boolean falhou = notificacao.getStatus() == NotificationStatus.FAILED;
-            boolean recente = alerta.getCreatedAt() != null
-                    && Duration.between(alerta.getCreatedAt(), LocalDateTime.now()).toHours()
-                    < HORAS_PARA_REENVIAR_FALHAS;
+            LocalDateTime referenciaTempo = notificacao.getSentAt() != null
+                    ? notificacao.getSentAt()
+                    : alerta.getCreatedAt();
+            boolean dentroJanela = referenciaTempo != null
+                    && Duration.between(referenciaTempo, agora).toHours() < HORAS_PARA_REENVIAR_FALHAS;
 
-            // já enviado (ou pendente), ou falha antiga demais: não envia de novo
-            if (!falhou || !recente) {
+            if (!falhou || !dentroJanela) {
                 return false;
             }
         } else {
@@ -231,12 +230,15 @@ public class AlertaMonitorService {
             notificacao.setStatus(NotificationStatus.FAILED);
         }
 
-        notificacao.setSentAt(LocalDateTime.now());
+        notificacao.setSentAt(agora);
         notificationRepository.save(notificacao);
         return notificacao.getStatus() == NotificationStatus.SENT;
     }
 
-    /** Sem assinaturas: recebe tudo da cidade. Com assinaturas: precisa bater a categoria. */
+    /**
+     * Sem assinaturas: recebe avisos da cidade/UF do usuário.
+     * Com assinaturas: exige compatibilidade de local (quando preenchido) e categoria (quando preenchida).
+     */
     private boolean assinaturaPermite(User usuario, Alert alerta, Map<Long, List<Subscription>> cache) {
         List<Subscription> assinaturas = cache.computeIfAbsent(
                 usuario.getId(), id -> subscriptionRepository.findByUserId(id));
@@ -244,8 +246,31 @@ public class AlertaMonitorService {
         if (assinaturas.isEmpty()) {
             return true;
         }
-        return assinaturas.stream().anyMatch(s ->
-                s.getCategoryFilter() == null || s.getCategoryFilter() == alerta.getCategory());
+
+        String cidadeAlertaNorm = AlertaClassificador.normalizar(alerta.getCity());
+        String ufAlerta = alerta.getLocationUf() != null ? alerta.getLocationUf().trim().toUpperCase(Locale.ROOT) : "";
+
+        return assinaturas.stream().anyMatch(s -> {
+            boolean localOk = localCompativel(s, cidadeAlertaNorm, ufAlerta);
+            boolean categoriaOk = s.getCategoryFilter() == null || s.getCategoryFilter() == alerta.getCategory();
+            return localOk && categoriaOk;
+        });
+    }
+
+    private boolean localCompativel(Subscription s, String cidadeAlertaNorm, String ufAlerta) {
+        boolean temCidade = s.getCityFilter() != null && !s.getCityFilter().isBlank();
+        boolean temUf = s.getRegionFilter() != null && !s.getRegionFilter().isBlank();
+
+        if (!temCidade && !temUf) {
+            return true;
+        }
+        if (temCidade && !AlertaClassificador.normalizar(s.getCityFilter()).equals(cidadeAlertaNorm)) {
+            return false;
+        }
+        if (temUf && !s.getRegionFilter().trim().toUpperCase(Locale.ROOT).equals(ufAlerta)) {
+            return false;
+        }
+        return true;
     }
 
     private String montarAssunto(Alert alerta) {
@@ -289,6 +314,9 @@ public class AlertaMonitorService {
     }
 
     private String truncar(String texto, int max) {
+        if (texto == null) {
+            return "";
+        }
         return texto.length() <= max ? texto : texto.substring(0, max - 3) + "...";
     }
 }

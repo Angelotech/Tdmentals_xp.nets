@@ -10,12 +10,14 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "alerts", indexes = {
         @Index(name = "idx_alert_city_uf", columnList = "city, location_uf"),
+        @Index(name = "idx_alert_ibge", columnList = "ibge_code"),
         @Index(name = "idx_alert_published_at", columnList = "published_at")
 })
 @Getter
 @Setter
 @NoArgsConstructor
 public class Alert {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -28,6 +30,9 @@ public class Alert {
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "action_guidance", columnDefinition = "TEXT")
+    private String actionGuidance;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
@@ -43,6 +48,9 @@ public class Alert {
     @Column(name = "location_uf", nullable = false, length = 2)
     private String locationUf;
 
+    @Column(name = "ibge_code", length = 7)
+    private String ibgeCode;
+
     @Column(name = "source_name", nullable = false, length = 100)
     private String sourceName;
 
@@ -57,6 +65,8 @@ public class Alert {
 
     @PrePersist
     void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 }

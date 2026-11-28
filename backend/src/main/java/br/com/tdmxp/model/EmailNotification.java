@@ -7,11 +7,14 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "email_notifications")
+@Table(name = "email_notifications", uniqueConstraints = {
+        @UniqueConstraint(name = "uq_user_alert", columnNames = {"user_id", "alert_id"})
+})
 @Getter
 @Setter
 @NoArgsConstructor
 public class EmailNotification {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -24,7 +27,7 @@ public class EmailNotification {
     @JoinColumn(name = "alert_id", nullable = false)
     private Alert alert;
 
-    @Column(name = "sent_at", nullable = false, updatable = false)
+    @Column(name = "sent_at")
     private LocalDateTime sentAt;
 
     @Enumerated(EnumType.STRING)
@@ -33,6 +36,8 @@ public class EmailNotification {
 
     @PrePersist
     void onCreate() {
-        if (status == null) status = NotificationStatus.PENDING;
+        if (status == null) {
+            status = NotificationStatus.PENDING;
+        }
     }
 }

@@ -1,4 +1,4 @@
-package br.com.tdmxp.util;
+package br.com.tdmxp.model;
 
 import java.util.Map;
 import java.util.Optional;
